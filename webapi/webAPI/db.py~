@@ -1,0 +1,21 @@
+import MySQLdb
+
+def get_data_from_db(host,port,db,sql):
+    """
+    get data from database
+    """
+    conn = MySQLdb.connect(host=host,user='root',passwd='letmein',port=port)
+    cur = conn.cursor()
+    conn.select_db(db)
+    cur.execute(sql)
+    data = cur.fetchall()
+    cur.close()
+    conn.close()
+    return data
+
+if __name__ == '__main__':
+    host = '192.168.31.111'
+    port = 32769
+    db = 'userdb'
+    sql = 'select * from user_info_db'
+    print get_data_from_db(host,port,db,sql)
