@@ -56,13 +56,15 @@ class Prowo():
     
     # 向下发送消息
     def socketClient(self, e_ip, e_port, message):
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((e_ip, int(e_port)))
         try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect((e_ip, int(e_port)))
             s.sendall(message.encode())
             response = s.recv(1024).decode()
             return response
             # 此处需要加上判断
+        except BaseException:
+            print("client Error")
         finally:
             s.close()
 
@@ -81,7 +83,6 @@ class Prowo():
         else:
             return False
         result = self.socketClient(ipaddr, int(port), method)
-        #print(result)
         result = json.loads(result)
         print("消息已经发送给docker")
         if result is None:
@@ -132,7 +133,7 @@ class Device():
 
 if __name__ == "__main__":
     a = Prowo('192.168.31.156', 'Vudo3423', 'host')
-    dht11 = Device(a, 'G_dht_001')
+    dht11 = Device(a, 'G_001')
     print(dht11.value())
     #fan = Device(a, 'switch006')
     #fan.do('on')

@@ -9,7 +9,7 @@ import json, types,string
 import os, time
 import logging
 import subprocess
-
+import pymysql
 import buildDock
 import db
 import login
@@ -38,9 +38,10 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         #:设备ip地址
         rec_ipaddr = jdata['ip']
  
-        #:是否参与群体;群体名称
+        #:是否参与群体;群体名称;是否参与子群体；子群体名称
         rec_group_status = jdata['group_status']
         rec_group_name = jdata['group_name']
+        rec_sub_group_name = jdata['sub_group_name']
 
         #:容器名
         if rec_group_status == 1:
@@ -59,19 +60,17 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             #:在equipdb数据表中注册设备
             sql = "insert into equipdb (equip,status,signintime,dockername,ipaddress,group_status,group_name) values ('" + rec_equip +"'," + str(status)+","+str(timel)+",'"+imname+"','"+rec_ipaddr+"',"+str(rec_group_status)+",'"+rec_group_name+"')"
             db.exec(sql)
-            		
-            #:在设备所属种群的数据表中将status置为1，表示设备在线;并将设备ip记入种群数据表
+           	
+            #:把设备在子群体中标识上线，并录入ip
             if rec_group_status == 1:
                 #:设备上线
-                sqlG = "update " + rec_group_name + " set equip_status = 1 where equip_name = '" + rec_equip + "'"
-                db.exec(sqlG)
+                sqlG = "update " + rec_sub_group_name + " set equip_status = 1 where equip_name = '" + rec_equip + "'"
+                database_exec(sqlG, rec_group_name)
                 #:登记设备ip
-                sqlG = "update " + rec_group_name + " set equip_ip = '" + rec_ipaddr + "' where equip_name = '" + rec_equip + "'"
-                db.exec(sqlG)                
+                sqlG = "update " + rec_sub_group_name + " set equip_ip = '" + rec_ipaddr + "' where equip_name = '" + rec_equip + "'"
+                database_exec(sqlG, rec_group_name)                
 
             
-
-
             #:标记设备登录成功
             log_ans = True
             #:检查本地镜像库是否已经存在该镜像
@@ -148,12 +147,21 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
  
         cur_thread = threading.current_thread()
         #:构建json消息
-        response = {'equip':rec_equip,'log_ans':log_ans,'cmd_ans':cmd_ans,'port':flag[1],'group_status':rec_group_status,'group_name':rec_group_name}
+        response = {'equip':rec_equip,'log_ans':log_ans,'cmd_ans':cmd_ans,'port':flag[1],'group_status':rec_group_status,'group_name':rec_group_name,'sub_group_name':rec_sub_group_name}
         jresp = json.dumps(response)
         self.request.sendall(jresp.encode())
            
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
+
+def database_exec(sql,database):
+    conn = pymysql.connect(host = '127.0.0.1', port = 12306, user = 'root', password = 'Vudo3423', db = database, charset = 'utf8')
+    cursor = conn.cursor()
+    cursor.execute(sql)
+    conn.commit()
+    cursor.close()
+    conn.close()
+
 
 if __name__ == "__main__":
     cmd = 'docker start test-mysql'
