@@ -11,6 +11,8 @@ import subprocess
 import logging
 import pydb
 import pyfunc
+import updateDevice
+import threading
 
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     """
@@ -19,15 +21,45 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     """
     def handle(self):
         logger = logging.getLogger("TCPServer")
-        data = self.request.recv(1024).decode()
-        
-        # 新建字典，存储各个子群体的信息处理结果
-        dresp = {}
-        subGroup_list = get_subGroup() # 子群体列表
-        for sub_group in subGroup_list:
-            sub_data = groupDataProcess(sub_group) # 对于所有子群体，得到子群体的信息处理结果
-            dresp[sub_group] = sub_data
+        command = self.request.recv(1024).decode()
+        if command == "health_command":
+            # 暂时不用 
+            """
+            查询群体状态模块
+            """    
+            sql = "select health_degree from attributes where group_name = '" + "G_001" + "'" 
+            dresp = pydb.db_get(sql, "Group_data")[0][0]
+        elif command == 'on' or command == 'off':
+            """
+            调用模块
+            """
+            # 新建字典，存储各个子群体的指令处理结果
+            subGroup_list = get_subGroup() # 子群体列表
+            if len(subGroup_list) > 0:
+                for sub_group in subGroup_list:
+                    sub_data = groupCommandProcess(sub_group, command) # 对于所有子群体，得到子群体的指令处理结果
+                    #dresp[sub_group] = sub_data
+                    dresp = sub_data
+            else:
+                dresp = "No sub_group available"
+            sql = "update group_table set group_value = '" + str(dresp) + "' where group_name = '" + os.getenv('GROUP_NAME') + "'"
+            pydb.db_exe(sql, "Group_data")
+        else:
+            """
+            查询模块
+            """
+            # 新建字典，存储各个子群体的信息处理结果
+            subGroup_list = get_subGroup() # 子群体列表
+            if len(subGroup_list) > 0:
+                for sub_group in subGroup_list:
+                    sub_data = groupDataProcess(sub_group) # 对于所有子群体，得到子群体的信息处理结果
+                    #dresp[sub_group] = sub_data
+                    dresp = sub_data
+            else:
+                dresp = "No sub_group available"
 
+            sql = "update group_table set group_value = '" + str(dresp) + "' where group_name = '" + os.getenv('GROUP_NAME') + "'"
+            pydb.db_exe(sql, "Group_data")
         jresp = json.dumps(dresp)
         self.request.sendall(jresp.encode())
 
@@ -39,28 +71,33 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 def groupDataProcess(sub_group):
     """
-    Group information processing module 
+    对子群体中的设备按其调用方法进行调用,现有均为同类设备
     """
-    function = get_sub_function('G_001', sub_group)
-    print("\n"+"***********************")
-    print(function + " start")
-    if function == "dht_function":
-        return pyfunc.dhtfunc(sub_group)
-    elif function == "lumi_function":
-        return pyfunc.lumifunc(sub_group)
-
-def getListAverage(data_list):
-    if len(data_list) > 0:
-        sum = 0
-        for item in data_list:
-            sum += float(item)
-        result = sum / len(data_list)
+    ac_devs = get_AcDev(os.getenv('GROUP_NAME'), sub_group)
+    if len(ac_devs) > 0:
+        subgroup_class = ac_devs[0][1] # 子群体属性 
+        resp = eval("pyfunc." + subgroup_class)(ac_devs, sub_group)
+        return resp
     else:
-        result = "No data available"
-    return result
+        return "No dev available"   
+
+def groupCommandProcess(sub_group,command):
+    """
+    对子群体中的设备按其调用方法进行调用,现有均为同类设备
+    """
+    ac_devs = get_AcDev(os.getenv('GROUP_NAME'), sub_group)
+    if len(ac_devs) > 0:
+        subgroup_class = ac_devs[0][1] # 子群体属性 
+        resp = eval("pyfunc." + subgroup_class)(ac_devs, command, sub_group)
+        return resp
+    else:
+        return "No dev available"   
 
 def get_subGroup():
-    sql = "select sub_group from " + "G_001" 
+    """
+    获取所有子群体名称
+    """
+    sql = "select subgroup_name from " + os.getenv('GROUP_NAME') 
     cur_result = pydb.db_get(sql, 'Group_data')
     subGroup_list = []
     if cur_result:
@@ -68,31 +105,20 @@ def get_subGroup():
             subGroup_list.append(item[0])
     return subGroup_list
 
-def get_AcDevIp(group, sub_group):
+def get_AcDev(group, sub_group):
     """
     获取所有在线设备的ip地址
     """
-    sql = "select equip_ip from " + sub_group + " where equip_status =1"
+    sql = "select e_ip, e_class from " + sub_group + " where e_status = 1"
     cur_result = pydb.db_get(sql, group)
-    ip_list = []
-    if cur_result:
-        for item in cur_result:
-            ip_list.append(item[0])
-    return ip_list
+    return cur_result
 
-def get_sub_function(sub, sub_group): 
+def server_thread():
     """
-    Group information processing module 
+    server监听进程
     """
-    sql = "select function from " + sub + " where sub_group = '" + sub_group + "'"
-    cur_result = pydb.db_get(sql, 'Group_data')
-    if cur_result:
-        return cur_result[0][0]
-
-if __name__ == "__main__":
     #:设置host和port 
-    #HOST, PORT = "0.0.0.0", 3000
-    HOST, PORT = "0.0.0.0", 33341
+    HOST, PORT = "0.0.0.0", 3000
 
     logger = logging.getLogger("TCPServer")
     logger.setLevel(logging.INFO)
@@ -122,3 +148,23 @@ if __name__ == "__main__":
 
     #:使用Ctrl + C退出程序
     server.serve_forever()
+
+def updateDev_thread():
+    """
+    更新设备状态进程
+    """
+    while True:
+        subGroup_list = updateDevice.get_subGroup()
+        for item in subGroup_list:
+            updateDevice.update_dev_sta(item)
+        print("Do test_conn")
+        time.sleep(600)
+    
+if __name__ == "__main__":
+    thread_server = threading.Thread(target = server_thread, args=())   
+    thread_updateDev = threading.Thread(target = updateDev_thread, args=())
+    thread_server.start()
+    thread_updateDev.start() 
+    thread_server.join()
+    thread_updateDev.join()
+    print("双线程结束")

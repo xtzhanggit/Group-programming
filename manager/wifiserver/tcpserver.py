@@ -14,7 +14,7 @@ import buildDock
 import db
 import login
 
-os.chdir("/home/pi/HiDockerwifi/manager/wifiserver")
+os.chdir("/home/xtzhang/HiDockerwifi/manager/wifiserver")
 class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
     """
     路由器监听程序
@@ -42,6 +42,9 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
         rec_group_status = jdata['group_status']
         rec_group_name = jdata['group_name']
         rec_sub_group_name = jdata['sub_group_name']
+        
+        #:设备类型
+        rec_equip_category = jdata['equip_category']
 
         #:容器名
         if rec_group_status == 1:
@@ -58,18 +61,23 @@ class ThreadedTCPRequestHandler(socketserver.BaseRequestHandler):
             timel = str(time.time()).split('.')[0]
             print("new equip:"+rec_equip)
             #:在equipdb数据表中注册设备
-            sql = "insert into equipdb (equip,status,signintime,dockername,ipaddress,group_status,group_name) values ('" + rec_equip +"'," + str(status)+","+str(timel)+",'"+imname+"','"+rec_ipaddr+"',"+str(rec_group_status)+",'"+rec_group_name+"')"
+            sql = "insert into equipdb (equip,status,signintime,dockername,ipaddress,group_status,group_name,sub_group_name) values ('" + rec_equip +"'," + str(status)+","+str(timel)+",'"+imname+"','"+rec_ipaddr+"',"+str(rec_group_status)+",'"+rec_group_name+"','"+rec_sub_group_name+"')"
             db.exec(sql)
            	
-            #:把设备在子群体中标识上线，并录入ip
+            #:把设备在子群体中标识上线，并录入ip和设备类型；在群体密度上加1，上线设备数加1
             if rec_group_status == 1:
                 #:设备上线
-                sqlG = "update " + rec_sub_group_name + " set equip_status = 1 where equip_name = '" + rec_equip + "'"
+                sqlG = "update " + rec_sub_group_name + " set e_status = 1 where e_name = '" + rec_equip + "'"
                 database_exec(sqlG, rec_group_name)
                 #:登记设备ip
-                sqlG = "update " + rec_sub_group_name + " set equip_ip = '" + rec_ipaddr + "' where equip_name = '" + rec_equip + "'"
+                sqlG = "update " + rec_sub_group_name + " set e_ip = '" + rec_ipaddr + "' where e_name = '" + rec_equip + "'"
                 database_exec(sqlG, rec_group_name)                
-
+                #:标记设备类型
+                sqlG = "update " + rec_sub_group_name + " set e_class = '" + rec_equip_category + "' where e_name = '" + rec_equip + "'"
+                database_exec(sqlG, rec_group_name)
+                #:群体密度加1，上线设备数目加1
+                #sqlG = "update attributes set population_density = population_density + 1, online_number = online_number + 1 where group_name = '" + rec_group_name + "'"
+                #database_exec(sqlG, "Group_data")
             
             #:标记设备登录成功
             log_ans = True
@@ -155,7 +163,7 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
 
 def database_exec(sql,database):
-    conn = pymysql.connect(host = '127.0.0.1', port = 12306, user = 'root', password = 'Vudo3423', db = database, charset = 'utf8')
+    conn = pymysql.connect(host = '127.0.0.1', port = 12306, user = 'root', passwd = 'Vudo3423', db = database, charset = 'utf8')
     cursor = conn.cursor()
     cursor.execute(sql)
     conn.commit()
@@ -170,6 +178,7 @@ if __name__ == "__main__":
         exit(0)
 
     print('started!')
+
     #:设置host和port 
     HOST, PORT = "0.0.0.0", 22223
     

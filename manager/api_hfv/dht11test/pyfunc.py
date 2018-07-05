@@ -9,69 +9,72 @@ import subprocess
 import logging
 import pydb
 
-
-
-def dhtfunc(sub_group):
+def temp(ac_devs, sub_group):
     """
-    dht processing module 
+    temp子群体方法
     """
-    ip_list = get_AcDevIp('G_001', sub_group)
-    if len(ip_list) > 0:
-        print(ip_list)
-        temp_list = []
-        humi_list = []
-
-        for item in ip_list:
-            (status, output) = subprocess.getstatusoutput('python3 tcpclient.py ' + item)
-            print ("client result:" + output)
-            if output == "OSError":
-                print("Degvice " + item + " is already offline")
-                sql = "update " + sub_group + " set equip_status = 0 where equip_ip = '" + item + "'"
-                pydb.db_exe(sql,'G_001')
-
+    temp_data = 0
+    humi_data = 0
+    available_num = 0
+    for item in ac_devs:
+        e_ip = item[0]
+        (status, output) = subprocess.getstatusoutput('python3 tcpclient.py  ' + e_ip + ' value_command ' + sub_group)
+        print ("client result:" + output)
+        if output == "OSError":
+            print("Degvice " + e_ip + " is already offline")
+        else:
+            lists = output.split('&')
+            if len(lists) == 1:
+                print('wrong')
             else:
-                lists = output.split('&')
-                if len(lists) == 1:
-                    print('wrong')
-                else:
-                    temp_list.append(lists[0])
-                    humi_list.append(lists[1])
+                available_num += 1
+                temp_data += float(lists[0])
+                humi_data += float(lists[1])
+    if available_num > 0:
+        temp_data = temp_data / available_num
+        humi_data = humi_data / available_num
+    return temp_data
 
-        temp = getListAverage(temp_list)
-        humi = getListAverage(humi_list)
-        dresp = {'temp': temp ,'humi': humi}
-    else:
-        dresp = "No device available"
-    print(dresp)
-    return dresp
-
-
-def lumifunc(sub_group):
+def humi(ac_devs, sub_group):
     """
-    lumi processing module 
+    humi子群体方法
     """
-    ip_list = get_AcDevIp('G_001', sub_group)
-    if len(ip_list) > 0:
-        print(ip_list)
-        lumi_list = []
-
-        for item in ip_list:
-            (status, output) = subprocess.getstatusoutput('python3 tcpclient.py ' + item)
-            print ("client result:" + output)
-            if output == "OSError":
-                print("Degvice " + item + " is already offline")
-                sql = "update " + sub_group + " set equip_status = 0 where equip_ip = '" + item + "'"
-                pydb.db_exe(sql,'G_001')
-
+    temp_data = 0
+    humi_data = 0
+    available_num = 0
+    for item in ac_devs:
+        e_ip = item[0]
+        (status, output) = subprocess.getstatusoutput('python3 tcpclient.py  ' + e_ip + ' value_command ' + sub_group)
+        print ("client result:" + output)
+        if output == "OSError":
+            print("Degvice " + e_ip + " is already offline")
+        else:
+            lists = output.split('&')
+            if len(lists) == 1:
+                print('wrong')
             else:
-                lumi_list.append(output)
+                available_num += 1
+                temp_data += float(lists[0])
+                humi_data += float(lists[1])
+    if available_num > 0:
+        temp_data = temp_data / available_num
+        humi_data = humi_data / available_num
+    return humi_data
 
-        lumi = getListAverage(lumi_list)
-        dresp = lumi
-    else:
-        dresp = "No device available"
-    print(dresp)
-    return dresp
+def switch(ac_devs, command, sub_group):
+    """
+    switch子方法
+    """
+    available_num = 0 
+    for item in ac_devs: 
+        e_ip = item[0]
+        (status, output) = subprocess.getstatusoutput('python3 tcpclient.py  ' + e_ip + ' ' + command + ' ' + sub_group)
+        print ("client result:" + output)
+        if output == "OSError":
+            print("Degvice " + e_ip + " is already offline")
+        else:
+            available_num += 1
+    return available_num > 0
 
 
 def getListAverage(data_list):

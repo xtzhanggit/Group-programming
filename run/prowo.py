@@ -64,7 +64,8 @@ class Prowo():
             return response
             # 此处需要加上判断
         except BaseException:
-            print("client Error")
+            #print("Connection refused Error")
+            return None
         finally:
             s.close()
 
@@ -76,22 +77,24 @@ class Prowo():
                 return False
             ipaddr = self.ip
             port = result[0]
-            print("已经查询到设备",ipaddr,port)
         elif self.mode == 'docker':
             ipaddr = equipid
             port = 3000
         else:
             return False
         result = self.socketClient(ipaddr, int(port), method)
-        result = json.loads(result)
-        print("消息已经发送给docker")
-        if result is None:
-            print('查询错误')           
+        if not result:
+            #print("与docker无连接")
             return False
-        return result
+        else:    
+            result = json.loads(result)
+            #if result is None:
+                #print('查询错误')           
+                #return False
+            return result
 
-    def getData(self, equipid):
-        return self.connectDevice(equipid, '1')
+    def getData(self, equipid, command):
+        return self.connectDevice(equipid, command)
 
     def execute(self, equipid, method):
         return self.connectDevice(equipid, method)
@@ -123,17 +126,28 @@ class Device():
         self.p = p
 
     def value(self):
-        data = self.p.getData(self.equipid)
+        data = self.p.getData(self.equipid, "value_command")
         return data
 
     def do(self, method):
         data = self.p.execute(self.equipid, method)
         return data
 
+    def health(self):
+        data = self.p.getData(self.equipid, "health_command")
+        return data
 
 if __name__ == "__main__":
-    a = Prowo('192.168.31.156', 'Vudo3423', 'host')
-    dht11 = Device(a, 'G_001')
-    print(dht11.value())
+    #a = Prowo('192.168.31.229', 'Vudo3423', 'host')
+    #cluster1 = Device(a, 'cluster1')
+    #value = cluster1.value()
+    #print(value)
+    #cluster2 = Device(a,'cluster2')
+    #result = cluster2.do('off')
+    print(result)
+    #for key in value.keys():
+    #    print("%s:%s"%(key, value[key]))
     #fan = Device(a, 'switch006')
     #fan.do('on')
+    #health = G_001.health()
+    #print("health:", health)

@@ -8,11 +8,15 @@ def update_dev_sta(sub_group):
     if len(ip_list) > 0:
         print(ip_list)
         for item in ip_list:
-            print(test_conn(item))
-            if not test_conn(item):
-                sql = "update " + sub_group + " set equip_status = 0 where equip_ip = '" + item + "'"
-                pydb.db_exe(sql, 'G_001')
+            conn_flag = test_conn(item)
+            print(conn_flag)
+            if not conn_flag:
+                sql = "update " + sub_group + " set e_status = 0 where e_ip = '" + item + "'"
+                pydb.db_exe(sql, os.getenv('GROUP_NAME'))
                 print(sql)
+                #sql = "update attributes set population_density = population_density - 1, offline_number = offline_number + 1 where group_name = 'G_001'"
+                #pydb.db_exe(sql, "Group_data")
+                #print(sql)
     else:
         print("No device available")
 
@@ -29,8 +33,8 @@ def test_conn(ip):
         s.close()
 
 def getAcDevIp(sub_group):
-    sql = "select equip_ip from " + sub_group + " where equip_status = 1"
-    ip_result = pydb.db_get(sql, 'G_001')
+    sql = "select e_ip from " + sub_group + " where e_status = 1"
+    ip_result = pydb.db_get(sql, os.getenv('GROUP_NAME'))
     ip_list = []
     if ip_result:
         for item in ip_result:
@@ -38,7 +42,7 @@ def getAcDevIp(sub_group):
     return ip_list
 
 def get_subGroup():
-    sql = "select sub_group from " + "G_001"
+    sql = "select subgroup_name from " + os.getenv('GROUP_NAME')
     cur_result = pydb.db_get(sql, 'Group_data')
     subGroup_list = []
     if cur_result:
@@ -52,4 +56,4 @@ if __name__ == "__main__":
         for item in subGroup_list:
             update_dev_sta(item)
         print("Do test_conn")
-        time.sleep(10)
+        time.sleep(20)
